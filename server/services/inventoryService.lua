@@ -1480,6 +1480,10 @@ function InventoryService.shareMoneyPickupServer(data)
 	if amount > money then return end
 
 	Character.removeCurrency(0, amount)
+	-- Refresh the dropper's main inventory UI so the currency slot reflects the
+	-- new balance. Without this, the player still sees their pre-drop amount in
+	-- the main panel while the drop panel correctly shows the dropped stack.
+	TriggerClientEvent("vorp_inventory:ReloadInv", _source)
 	local uid = SvUtils.GenerateUniqueID()
 	local dropId = getOrCreateDropLocation(position)
 	local targetSlot = data.targetSlot
@@ -1519,6 +1523,8 @@ function InventoryService.shareGoldPickupServer(data)
 	if data.amount > gold then return end
 
 	Character.removeCurrency(1, data.amount)
+	-- See shareMoneyPickupServer comment — same UI-refresh requirement.
+	TriggerClientEvent("vorp_inventory:ReloadInv", _source)
 	local uid = SvUtils.GenerateUniqueID()
 	local dropId = getOrCreateDropLocation(data.position)
 	local targetSlot = data.targetSlot
