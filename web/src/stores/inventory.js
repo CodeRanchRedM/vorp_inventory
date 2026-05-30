@@ -254,6 +254,25 @@ export const useInventoryStore = defineStore('inventory', () => {
       case 'setItems':
         TIME_NOW.value = data.timenow
         var items = data.itemList || []
+        // Stable slot memory: any item that arrives without a slot field falls
+        // back to wherever it sat in the previous render. Without this, the
+        // UI's assignSlots would silently re-pack slot-less items into the
+        // lowest free slot — visible to the player as other items "auto-
+        // sorting" toward slot 1 the moment they drop an item from an early
+        // slot. The server is supposed to persist slots on every transfer
+        // (server/services/inventoryService.lua getInventory), but any code
+        // path that creates an item without setting `slot` would still send
+        // null. This guard makes the UI stable regardless.
+        for (var pi = 0; pi < playerInventory.value.length; pi++) {
+          var prev = playerInventory.value[pi]
+          if (prev.locked || prev.id == null || prev.slot == null) continue
+          for (var ni = 0; ni < items.length; ni++) {
+            if (items[ni].id === prev.id && items[ni].slot == null) {
+              items[ni].slot = prev.slot
+              break
+            }
+          }
+        }
         // Add virtual items at last slots (dynamically based on PlayerInventorySlots)
         var totalSlots = LuaConfig.value.PlayerInventorySlots || 25
         if (LuaConfig.value.AddAmmoItem) {
@@ -269,7 +288,20 @@ export const useInventoryStore = defineStore('inventory', () => {
         break
 
       case 'setSecondInventoryItems':
-        secondInventory.value = assignSlots(data.itemList || [])
+        var secItems = data.itemList || []
+        // Same slot-memory trick as setItems — keeps stash/horse/bank/etc.
+        // slots stable when the server omits the slot field on a reload.
+        for (var spi = 0; spi < secondInventory.value.length; spi++) {
+          var sprev = secondInventory.value[spi]
+          if (sprev.id == null || sprev.slot == null) continue
+          for (var sni = 0; sni < secItems.length; sni++) {
+            if (secItems[sni].id === sprev.id && secItems[sni].slot == null) {
+              secItems[sni].slot = sprev.slot
+              break
+            }
+          }
+        }
+        secondInventory.value = assignSlots(secItems)
         break
 
       case 'updateStatusHud':
