@@ -1929,10 +1929,38 @@ function InventoryService.getInventory()
 		end)
 
 
+		-- Collect this player's weapons, assigning a stable slot to any that
+		-- still have NULL slot (default from the loadout migration). Without
+		-- this, slot-less weapons get re-packed by the UI on every reload — the
+		-- player sees their inventory "auto-sort" after consuming an item.
 		local userWeapons = {}
+		local weaponUsedSlots = {}
+		local slotlessWeapons = {}
 		for _, weapon in pairs(UsersWeapons.default) do
 			if weapon.propietary == sourceIdentifier and weapon.charId == sourceCharId and weapon.currInv == "default" and weapon.dropped == 0 then
 				userWeapons[#userWeapons + 1] = weapon
+				local s = weapon:getSlot()
+				if s then
+					weaponUsedSlots[s] = true
+				else
+					slotlessWeapons[#slotlessWeapons + 1] = weapon
+				end
+			end
+		end
+		if #slotlessWeapons > 0 then
+			-- Also avoid colliding with item slots already loaded.
+			for _, itemObj in pairs(UsersInventories.default[sourceIdentifier] or {}) do
+				if itemObj:getSlot() then weaponUsedSlots[itemObj:getSlot()] = true end
+			end
+			-- Sort by weapon id so the assignment is deterministic across reloads
+			-- (pairs() iteration order is otherwise undefined in Lua).
+			table.sort(slotlessWeapons, function(a, b) return tonumber(a:getId()) < tonumber(b:getId()) end)
+			local nextSlot = 1
+			for _, weapon in ipairs(slotlessWeapons) do
+				while weaponUsedSlots[nextSlot] do nextSlot = nextSlot + 1 end
+				weapon:setSlot(nextSlot)
+				DBService.UpdateWeaponSlot(weapon:getId(), nextSlot)
+				weaponUsedSlots[nextSlot] = true
 			end
 		end
 		TriggerClientEvent("vorpInventory:giveLoadout", _source, userWeapons)

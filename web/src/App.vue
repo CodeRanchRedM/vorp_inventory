@@ -283,6 +283,15 @@
     return getTransferAmount(item)
   }
 
+  // Weapons report `count` as their ammo total (see client/services/NUIService.lua
+  // loadWeapons), so a weapon with no ammo would otherwise be treated as a
+  // zero-quantity stack and skipped. Every weapon transfers as 1.
+  function quickStackAmount(item) {
+    if (!item) return 0
+    if (item.type === 'item_weapon') return 1
+    return Math.max(0, Number(item.count) || 0)
+  }
+
   // Move the entire stack of `item` from the player inventory to whatever the
   // open second panel is. Used by Ctrl+Click and Double-Click.
   function quickTransferFromPlayer(item) {
@@ -290,18 +299,19 @@
     if (isEquippedWeapon(item)) return
     if (item.locked && !isCurrencyItem(item)) return
 
-    var amount = Math.max(0, Number(item.count) || 0)
+    var amount = quickStackAmount(item)
     if (amount <= 0) return
 
-    // Main panel with drop visible → drop the stack.
-    if (inventory.invType === 'main' && inventory.secondInventoryType === 'drop' && inventory.nearbyDropId) {
+    // Main panel with drop visible → drop the stack. Note: we deliberately do
+    // NOT gate this on inventory.nearbyDropId — DropItem creates a new pickup
+    // server-side, so the first drop on a fresh patch of ground must work too.
+    if (inventory.invType === 'main' && inventory.secondInventoryType === 'drop') {
       var dropConfig = inventory.LuaConfig.DropInventory
       if (dropConfig && dropConfig.MaxWeight > 0) {
         var itemWeight = (item.weight || 0) * amount
         if (inventory.dropCurrentWeight + itemWeight > dropConfig.MaxWeight) return
       }
-      var targetSlot = findTransferTarget(item, inventory.getDropZoneItemAtSlot, totalDropSlots())
-      if (targetSlot == null) return
+      var targetSlot = findTransferTarget(item, inventory.getDropZoneItemAtSlot, totalDropSlots()) || 1
       securePostNUI('DropItem', {
         item: item.name, id: item.id, number: amount, type: item.type,
         metadata: item.metadata, degradation: item.degradation, targetSlot: targetSlot,
@@ -326,7 +336,7 @@
   // Move the entire stack of `item` from the second panel to the player inv.
   function quickTransferFromSecond(item) {
     if (!item) return
-    var amount = Math.max(0, Number(item.count) || 0)
+    var amount = quickStackAmount(item)
     if (amount <= 0) return
     var mapping = takeFromActions[inventory.invType]
     if (!mapping) return
