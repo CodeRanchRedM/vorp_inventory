@@ -212,6 +212,20 @@ Config = {
 
 	StealRequiresWeapon            = true, -- If true, player must have a weapon equipped to steal
 
+	-- Items / weapons the victim is allowed to keep when being robbed.
+	-- Any name listed here is hidden from the steal panel and cannot be taken,
+	-- even if the would-be thief crafts a request server-side.
+	StealBlacklist = {
+		-- Item names match the `name` column of character_inventories.
+		Items = {
+			-- ["consumable_raspberrywater"] = true,
+		},
+		-- Weapon hash names match the `name` column of loadout.
+		Weapons = {
+			WEAPON_MELEE_KNIFE = true, -- starter knife
+		},
+	},
+
 	-- ============================ CONTEXT MENU ACTIONS ==========================
 	-- The right-click context menu can show Use/Give action buttons alongside the
 	-- existing item-info panel. When enabled, you can optionally hide the larger

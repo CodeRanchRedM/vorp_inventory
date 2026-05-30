@@ -222,6 +222,13 @@ RegisterServerEvent("vorpinventory:registryRegisterWeapon", function(weaponId, t
 		return Core.NotifyRightTip(_source, "This weapon has no serial number and cannot be registered.", 5000)
 	end
 
+	local existing = MySQL.query.await("SELECT owner_name FROM vorp_weapon_registry WHERE serial = @serial;", { serial = tostring(serial) })
+	if existing and existing[1] then
+		Core.NotifyRightTip(_source, ("Serial %s is already registered to %s."):format(serial, existing[1].owner_name or "someone"), 5000)
+		TriggerClientEvent("vorpinventory:registryData", _source, getNearbyPlayersData(_source))
+		return
+	end
+
 	local ownerName = charDisplayName(targetChar)
 	MySQL.query.await([[INSERT INTO vorp_weapon_registry (serial, weapon_name, owner_name, owner_charid, registered_by)
 		VALUES (@serial, @wname, @owner, @charid, @by)

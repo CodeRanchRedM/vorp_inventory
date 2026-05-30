@@ -8,6 +8,16 @@ local DropInUse = {} -- [dropId] = sourceServerId
 local RepairingWeapons = {}
 local StealTargets = {} -- [sourceServerId] = targetServerId
 
+local function isStealBlacklistedItem(name)
+    if not Config.StealBlacklist or not Config.StealBlacklist.Items then return false end
+    return Config.StealBlacklist.Items[name] == true
+end
+
+local function isStealBlacklistedWeapon(name)
+    if not Config.StealBlacklist or not Config.StealBlacklist.Weapons then return false end
+    return Config.StealBlacklist.Weapons[name] == true
+end
+
 local function getCharacterDisplayName(character)
     if not character then return "" end
     local firstName = character.firstname or character.FirstName or ""
@@ -388,19 +398,23 @@ local function refreshStealInventory(_source, targetServerId)
     local targetInventory = UsersInventories.default[targetIdentifier]
     if targetInventory then
         for _, item in pairs(targetInventory) do
-            itemList[#itemList + 1] = item
+            if not isStealBlacklistedItem(item:getName()) then
+                itemList[#itemList + 1] = item
+            end
         end
     end
 
     for weaponId, weapon in pairs(UsersWeapons.default) do
         if weapon.charId == targetCharId and weapon:getPropietary() == targetIdentifier and weapon.dropped == 0 then
-            itemList[#itemList + 1] = {
-                id = weaponId, count = 1, name = weapon.name, label = weapon.name,
-                limit = 1, type = "item_weapon", desc = weapon.desc, group = 5,
-                serial_number = weapon.serial_number, custom_label = weapon.custom_label,
-                custom_desc = weapon.custom_desc, weight = weapon.weight, slot = weapon.slot,
-                durability = weapon:getDurability(),
-            }
+            if not isStealBlacklistedWeapon(weapon.name) then
+                itemList[#itemList + 1] = {
+                    id = weaponId, count = 1, name = weapon.name, label = weapon.name,
+                    limit = 1, type = "item_weapon", desc = weapon.desc, group = 5,
+                    serial_number = weapon.serial_number, custom_label = weapon.custom_label,
+                    custom_desc = weapon.custom_desc, weight = weapon.weight, slot = weapon.slot,
+                    durability = weapon:getDurability(),
+                }
+            end
         end
     end
 
@@ -475,6 +489,10 @@ RegisterServerEvent("syn_search:TakeFromsteal", function(dataJson)
     if itemType == "item_weapon" then
         local weapon = UsersWeapons.default[itemId]
         if not weapon or weapon:getPropietary() ~= targetIdentifier then return end
+        if isStealBlacklistedWeapon(weapon.name) then
+            Core.NotifyRightTip(_source, "That weapon is protected and cannot be stolen.", 4000)
+            return
+        end
 
         TriggerClientEvent("vorpInventory:removeWeapon", targetServerId, itemId)
         weapon:setUsed(false)
@@ -495,6 +513,10 @@ RegisterServerEvent("syn_search:TakeFromsteal", function(dataJson)
         if not targetInv or not targetInv[itemId] then return end
 
         local invItem = targetInv[itemId]
+        if isStealBlacklistedItem(invItem:getName()) then
+            Core.NotifyRightTip(_source, "That item is protected and cannot be stolen.", 4000)
+            return
+        end
         if amount > invItem:getCount() then amount = invItem:getCount() end
         if amount <= 0 then return end
 
@@ -734,6 +756,15 @@ RegisterServerEvent("vorpinventory:stealSwapBetween", function(playerSlot, steal
 
     local playerEntity, playerType = getItemAtSlot(sourceIdentifier, playerSlot)
     local stealEntity, stealType = getItemAtSlot(targetIdentifier, stealSlot)
+
+    if stealEntity then
+        local stealName = stealType == "weapon" and stealEntity.name or stealEntity:getName()
+        local blocked = stealType == "weapon" and isStealBlacklistedWeapon(stealName) or isStealBlacklistedItem(stealName)
+        if blocked then
+            Core.NotifyRightTip(_source, "That target slot is protected and cannot be swapped.", 4000)
+            return
+        end
+    end
 
     if playerEntity then
         transferEntityToOwner(playerEntity, playerType, sourceIdentifier, sourceCharId, targetIdentifier, targetCharId, stealSlot)

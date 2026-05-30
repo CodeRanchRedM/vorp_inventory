@@ -357,18 +357,49 @@ end
 
 function InventoryService.SecondSwapSlot(invId, fromSlot, toSlot)
 	local _source = source
+	if not CustomInventoryInfos[invId] then return end
+	local user = Core.getUser(_source)
+	if not user then return end
+	local sourceCharIdentifier = user.getUsedCharacter.charIdentifier
 	local inv = getCustomInvItems(_source, invId)
-	if not inv then return end
-	local fromId, fromItem = findItemAtSlot(inv, fromSlot)
-	local toId, toItem = findItemAtSlot(inv, toSlot)
-	if not fromItem then return end
+	local isShared = CustomInventoryInfos[invId]:isShared()
 
-	fromItem:setSlot(toSlot)
-	DBService.UpdateCustomInventoryItemSlot(invId, fromItem:getId(), toSlot)
+	local fromItem, toItem
+	if inv then
+		_, fromItem = findItemAtSlot(inv, fromSlot)
+		_, toItem = findItemAtSlot(inv, toSlot)
+	end
+
+	local fromWeapon, toWeapon
+	local invWeapons = UsersWeapons[invId]
+	if invWeapons then
+		for _, weapon in pairs(invWeapons) do
+			if isShared or weapon.charId == sourceCharIdentifier then
+				if weapon:getSlot() == fromSlot then fromWeapon = weapon end
+				if weapon:getSlot() == toSlot then toWeapon = weapon end
+			end
+		end
+	end
+
+	if not fromItem and not fromWeapon then return end
+
+	if fromItem then
+		fromItem:setSlot(toSlot)
+		DBService.UpdateCustomInventoryItemSlot(invId, fromItem:getId(), toSlot)
+	end
+	if fromWeapon then
+		fromWeapon:setSlot(toSlot)
+		DBService.UpdateWeaponSlot(fromWeapon.id, toSlot)
+	end
 	if toItem then
 		toItem:setSlot(fromSlot)
 		DBService.UpdateCustomInventoryItemSlot(invId, toItem:getId(), fromSlot)
 	end
+	if toWeapon then
+		toWeapon:setSlot(fromSlot)
+		DBService.UpdateWeaponSlot(toWeapon.id, fromSlot)
+	end
+
 	InventoryService.reloadInventory(_source, invId)
 end
 
@@ -1905,12 +1936,6 @@ function InventoryService.getInventory()
 			end
 		end
 		TriggerClientEvent("vorpInventory:giveLoadout", _source, userWeapons)
-
-		for id, _ in pairs(CustomInventoryInfos) do
-			if UsersInventories[id][sourceIdentifier] then
-				UsersInventories[id][sourceIdentifier] = nil
-			end
-		end
 	end
 end
 
@@ -2119,15 +2144,19 @@ function InventoryService.getInventoryTotalCount(identifier, charIdentifier, inv
 	if CustomInventoryInfos[invId]:isShared() then
 		userInventory = UsersInventories[invId]
 	else
-		userInventory = UsersInventories[invId][identifier]
+		userInventory = UsersInventories[invId] and UsersInventories[invId][identifier]
 	end
 
-	for _, item in pairs(userInventory) do
-		userTotalItemCount = userTotalItemCount + item:getCount()
+	if userInventory then
+		for _, item in pairs(userInventory) do
+			userTotalItemCount = userTotalItemCount + item:getCount()
+		end
 	end
-	for _, weapon in pairs(userWeapons) do
-		if CustomInventoryInfos[invId]:isShared() or weapon.charId == charIdentifier then
-			userTotalItemCount = userTotalItemCount + 1
+	if userWeapons then
+		for _, weapon in pairs(userWeapons) do
+			if CustomInventoryInfos[invId]:isShared() or weapon.charId == charIdentifier then
+				userTotalItemCount = userTotalItemCount + 1
+			end
 		end
 	end
 	return userTotalItemCount
@@ -2222,18 +2251,21 @@ function InventoryService.DoesHavePermission(invId, jobPerm, charidPerm)
 		return true
 	end
 
-	if not next(jobPerm.data) and not next(charidPerm.data) then
+	local jobData = jobPerm.data or {}
+	local charidData = charidPerm.data or {}
+
+	if not next(jobData) and not next(charidData) then
 		return true
 	end
 
-	if next(jobPerm.data) then
-		if jobPerm.data[jobPerm.job] and jobPerm.grade >= jobPerm.data[jobPerm.job] then
+	if next(jobData) then
+		if jobData[jobPerm.job] and jobPerm.grade >= jobData[jobPerm.job] then
 			return true
 		end
 	end
 
-	if next(charidPerm.data) then
-		if charidPerm.data[charidPerm.charid] then
+	if next(charidData) then
+		if charidData[charidPerm.charid] then
 			return true
 		end
 	end
@@ -2618,6 +2650,7 @@ function InventoryService.TakeFromCustom(obj)
 		local _userInventory = UsersInventories.default
 		local _item = _userInventory[sourceIdentifier]
 		if _item and _item[item.id] then
+			SvUtils.Trem(_source)
 			return print(GetPlayerName(_source) .. " tried to take an item from:" .. invId .. ", but already has it on main inventory with the same ID:" .. item.id .. "Possible Cheat!!")
 		end
 

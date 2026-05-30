@@ -136,6 +136,21 @@ export const useInventoryStore = defineStore('inventory', () => {
   // Fed by exports.vorp_inventory:setWornClothing(table) from a clothing resource.
   const wornClothing = ref({})
 
+  // Remembered transfer amounts per item name (QoL: pre-fill the amount input
+  // with the value the player last used for the same item).
+  const lastTransferAmounts = ref({})
+  function rememberAmount(itemName, amount) {
+    if (!itemName) return
+    var n = Number(amount)
+    if (!n || n <= 0) return
+    lastTransferAmounts.value[itemName] = n
+  }
+  function recallAmount(itemName) {
+    if (!itemName) return null
+    var v = lastTransferAmounts.value[itemName]
+    return v != null ? v : null
+  }
+
   // Weapon registry station UI
   const registryOpen = ref(false)
   const registryPlayers = ref([])
@@ -745,5 +760,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     shopId,
     shopView,
     shopOwnerTab,
+    rememberAmount,
+    recallAmount,
   }
 })

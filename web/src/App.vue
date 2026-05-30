@@ -193,9 +193,16 @@
     dragFrom.value = null
     dragSource.value = null
     dragGhost.value.show = false
-    if (!settings.doubleClickToUse) return
     var item = inventory.getItemAtSlot(slotIndex)
     if (!item) return
+    if (isEquippedWeapon(item)) return
+    // Quick transfer: when a transferable second inventory is open, double-click
+    // moves the item across instead of using it (Main ↔ Stash/Horse/Bank/etc).
+    if (isQuickTransferTarget()) {
+      quickTransferFromPlayer(item)
+      return
+    }
+    if (!settings.doubleClickToUse) return
     if (item.type === 'item_money' || item.type === 'item_gold') return
     if (item.type === 'item_weapon' && (item.used || item.used2)) {
       postNUI('UnequipWeapon', { item: item.name, id: item.id })
@@ -205,12 +212,159 @@
     }
   }
 
+  function onSecondDoubleClick(slotIndex) {
+    if (dragTimer) { clearTimeout(dragTimer); dragTimer = null }
+    dragStartPos = null
+    dragFrom.value = null
+    dragSource.value = null
+    dragGhost.value.show = false
+    if (!isQuickTransferTarget()) return
+    var item = inventory.getSecondItemAtSlot(slotIndex)
+    if (!item) return
+    quickTransferFromSecond(item)
+  }
+
   const dragFrom = ref(null)
   const dragSource = ref(null)
   const dragGhost = ref({ show: false, x: 0, y: 0, item: null })
   const transferAmount = ref(0)
+  // When the drag is started with Shift held, the drop splits the stack in half
+  // (or as close to half as possible). Reset on every mouseup.
+  const dragShift = ref(false)
   var dragTimer = null
   var dragStartPos = null
+
+  // True when the right-hand panel is a container the player can move items to.
+  // Drop and clothing are not real "transfer" targets, neither are shop/craft.
+  function isQuickTransferTarget() {
+    var t = inventory.invType
+    return t === 'custom' || t === 'horse' || t === 'cart' || t === 'house'
+        || t === 'hideout' || t === 'bank' || t === 'clan' || t === 'Container'
+        || t === 'steal'
+  }
+
+  // Find a target slot in `slotCount` slots that either already holds a
+  // stackable copy of `item`, or — failing that — is empty. Returns null if
+  // there is nowhere to put it.
+  function findTransferTarget(item, getAt, slotCount) {
+    if (!item || !slotCount) return null
+    for (var i = 1; i <= slotCount; i++) {
+      var existing = getAt(i)
+      if (existing && canStackItems(item, existing)) return i
+    }
+    for (var i = 1; i <= slotCount; i++) {
+      if (!getAt(i)) return i
+    }
+    return null
+  }
+
+  function totalPlayerSlots() {
+    return inventory.LuaConfig.PlayerInventorySlots || 25
+  }
+
+  function totalSecondSlots() { return 35 }
+
+  function totalDropSlots() {
+    var d = inventory.LuaConfig.DropInventory
+    return (d && d.Slots) || 35
+  }
+
+  // Returns the amount this drag should transfer. Shift-drag halves the stack.
+  function getDragAmount(item) {
+    if (!item) return 0
+    if (dragShift.value) {
+      var max = Number(item.count) || 0
+      if (max <= 0) return 0
+      if (isCurrencyItem(item)) return Math.floor((max / 2) * 100) / 100
+      // Math.max(1) so a stack of 1 still moves something — otherwise Shift+drag
+      // on a single item would silently no-op.
+      return Math.max(1, Math.floor(max / 2))
+    }
+    return getTransferAmount(item)
+  }
+
+  // Move the entire stack of `item` from the player inventory to whatever the
+  // open second panel is. Used by Ctrl+Click and Double-Click.
+  function quickTransferFromPlayer(item) {
+    if (!item) return
+    if (isEquippedWeapon(item)) return
+    if (item.locked && !isCurrencyItem(item)) return
+
+    var amount = Math.max(0, Number(item.count) || 0)
+    if (amount <= 0) return
+
+    // Main panel with drop visible → drop the stack.
+    if (inventory.invType === 'main' && inventory.secondInventoryType === 'drop' && inventory.nearbyDropId) {
+      var dropConfig = inventory.LuaConfig.DropInventory
+      if (dropConfig && dropConfig.MaxWeight > 0) {
+        var itemWeight = (item.weight || 0) * amount
+        if (inventory.dropCurrentWeight + itemWeight > dropConfig.MaxWeight) return
+      }
+      var targetSlot = findTransferTarget(item, inventory.getDropZoneItemAtSlot, totalDropSlots())
+      if (targetSlot == null) return
+      securePostNUI('DropItem', {
+        item: item.name, id: item.id, number: amount, type: item.type,
+        metadata: item.metadata, degradation: item.degradation, targetSlot: targetSlot,
+      })
+      inventory.rememberAmount(item.name, amount)
+      playPopSound()
+      return
+    }
+
+    // Container side panel open: use the matching MoveTo action.
+    var mapping = moveToActions[inventory.invType]
+    if (!mapping) return
+    var targetSlot = findTransferTarget(item, inventory.getSecondItemAtSlot, totalSecondSlots())
+    if (targetSlot == null) return
+    var payload = { item: item, type: item.type, number: amount, targetSlot: targetSlot }
+    payload[mapping.key] = mapping.getId()
+    postNUI(mapping.action, payload)
+    inventory.rememberAmount(item.name, amount)
+    playPopSound()
+  }
+
+  // Move the entire stack of `item` from the second panel to the player inv.
+  function quickTransferFromSecond(item) {
+    if (!item) return
+    var amount = Math.max(0, Number(item.count) || 0)
+    if (amount <= 0) return
+    var mapping = takeFromActions[inventory.invType]
+    if (!mapping) return
+    var targetSlot = findTransferTarget(item, inventory.getItemAtSlot, totalPlayerSlots())
+    if (targetSlot == null) return
+    var payload = { item: item, type: item.type, number: amount, targetSlot: targetSlot }
+    payload[mapping.key] = mapping.getId()
+    postNUI(mapping.action, payload)
+    inventory.rememberAmount(item.name, amount)
+    playPopSound()
+  }
+
+  // Pickup the entire stack of a drop-zone item into the player inventory.
+  function quickPickupFromDrop(item, fromSlot) {
+    if (!item || !inventory.nearbyDropId) return
+    var amount = Math.max(0, Number(item.amount) || 0)
+    if (amount <= 0) return
+    var targetSlot = findTransferTarget(
+      Object.assign({}, item, { count: amount }),
+      inventory.getItemAtSlot,
+      totalPlayerSlots()
+    )
+    if (targetSlot == null) return
+    postNUI('PickupFromDrop', {
+      dropId: inventory.nearbyDropId,
+      fromSlot: fromSlot,
+      targetSlot: targetSlot,
+      amount: amount,
+      name: item.name,
+      type: item.type,
+      isMoney: item.isMoney || false,
+      isGold: item.isGold || false,
+      uuid: item.uuid,
+      uids: item.uids,
+    })
+    inventory.rememberAmount(item.name, amount)
+    playPopSound()
+  }
 
   // Reset transferAmount when inventory opens/closes
   watch(() => inventory.isVisible, function() {
@@ -221,7 +375,17 @@
     var item = inventory.getItemAtSlot(slotIndex)
     if (!item) return
     if (e.button !== 0) return
+    // Ctrl+Click: instant full-stack transfer to whatever the second panel is.
+    if (e.ctrlKey) {
+      e.preventDefault()
+      quickTransferFromPlayer(item)
+      return
+    }
     e.preventDefault()
+    dragShift.value = !!e.shiftKey
+    // Pre-fill the amount input with whatever was last used for this item.
+    var recalled = inventory.recallAmount(item.name)
+    if (recalled != null) transferAmount.value = recalled
     dragStartPos = { x: e.clientX, y: e.clientY, slot: slotIndex, item: item, source: 'player' }
     dragTimer = setTimeout(function() {
       if (dragStartPos) {
@@ -248,7 +412,7 @@
         var targetPlayerItem = inventory.getItemAtSlot(toSlot)
         if (targetPlayerItem && !canStackItems(dropItem, targetPlayerItem)) { dragFrom.value = null; dragSource.value = null; dragGhost.value.show = false; return }
 
-        var amount = getTransferAmount(Object.assign({}, dropItem, { count: dropItem.amount }))
+        var amount = getDragAmount(Object.assign({}, dropItem, { count: dropItem.amount }))
 
         postNUI('PickupFromDrop', {
           dropId: inventory.nearbyDropId,
@@ -262,6 +426,7 @@
           uuid: dropItem.uuid,
           uids: dropItem.uids,
         })
+        inventory.rememberAmount(dropItem.name, amount)
         playPopSound()
       }
       dragFrom.value = null
@@ -284,10 +449,11 @@
           var type = inventory.invType
           var mapping = takeFromActions[type]
           if (mapping) {
-            var amount = getTransferAmount(secItem)
+            var amount = getDragAmount(secItem)
             var payload = { item: secItem, type: secItem.type, number: amount, targetSlot: toSlot }
             payload[mapping.key] = mapping.getId()
             postNUI(mapping.action, payload)
+            inventory.rememberAmount(secItem.name, amount)
             playPopSound()
           }
         }
@@ -327,8 +493,9 @@
     }
     if (dragFrom.value !== toSlot) {
       var fromItem = inventory.getItemAtSlot(dragFrom.value)
-      var amount = fromItem ? getTransferAmount(fromItem) : 0
+      var amount = fromItem ? getDragAmount(fromItem) : 0
       inventory.swapSlots(dragFrom.value, toSlot, amount > 0 ? amount : null)
+      if (fromItem && amount > 0) inventory.rememberAmount(fromItem.name, amount)
       playPopSound()
     }
     dragFrom.value = null
@@ -340,7 +507,13 @@
     var item = inventory.getDropZoneItemAtSlot(slotIndex)
     if (!item) return
     if (e.button !== 0) return
+    if (e.ctrlKey) {
+      e.preventDefault()
+      quickPickupFromDrop(item, slotIndex)
+      return
+    }
     e.preventDefault()
+    dragShift.value = !!e.shiftKey
     dragStartPos = { x: e.clientX, y: e.clientY, slot: slotIndex, item: item, source: 'dropzone' }
     dragTimer = setTimeout(function() {
       if (dragStartPos) {
@@ -358,11 +531,13 @@
       var item = inventory.getItemAtSlot(dragFrom.value)
       if (item) {
         if (isEquippedWeapon(item)) { dragFrom.value = null; dragSource.value = null; dragGhost.value.show = false; return }
+        if (isCurrencyItem(item) && (Number(item.count) || 0) <= 0) { dragFrom.value = null; dragSource.value = null; dragGhost.value.show = false; return }
         // Block if target slot has different item
         var targetDropItem = inventory.getDropZoneItemAtSlot(toSlot)
         if (targetDropItem && !canStackItems(item, targetDropItem)) { dragFrom.value = null; dragSource.value = null; dragGhost.value.show = false; return }
 
-        var amount = getTransferAmount(item)
+        var amount = getDragAmount(item)
+        if (isCurrencyItem(item) && amount <= 0) { dragFrom.value = null; dragSource.value = null; dragGhost.value.show = false; return }
 
         // Check drop weight limit
         var dropConfig = inventory.LuaConfig.DropInventory
@@ -380,12 +555,14 @@
           degradation: item.degradation,
           targetSlot: toSlot,
         })
+        inventory.rememberAmount(item.name, amount)
         playPopSound()
       }
     } else if (dragSource.value === 'dropzone' && dragFrom.value !== toSlot) {
       var fromItem = inventory.getDropZoneItemAtSlot(dragFrom.value)
-      var amount = fromItem ? getTransferAmount(Object.assign({}, fromItem, { count: fromItem.amount })) : 0
+      var amount = fromItem ? getDragAmount(Object.assign({}, fromItem, { count: fromItem.amount })) : 0
       inventory.swapDropSlots(dragFrom.value, toSlot, amount > 0 ? amount : null)
+      if (fromItem && amount > 0) inventory.rememberAmount(fromItem.name, amount)
       playPopSound()
     }
     dragFrom.value = null
@@ -444,8 +621,10 @@
     if (!item) { dragFrom.value = null; dragGhost.value.show = false; return }
     if (isEquippedWeapon(item)) { dragFrom.value = null; dragSource.value = null; dragGhost.value.show = false; return }
     if (item.locked && item.type !== 'item_money' && item.type !== 'item_gold') { dragFrom.value = null; dragSource.value = null; dragGhost.value.show = false; return }
+    if (isCurrencyItem(item) && (Number(item.count) || 0) <= 0) { dragFrom.value = null; dragSource.value = null; dragGhost.value.show = false; return }
 
     var amount = getTransferAmount(item)
+    if (isCurrencyItem(item) && amount <= 0) { dragFrom.value = null; dragSource.value = null; dragGhost.value.show = false; return }
 
     var giveType = item.type
     var giveItem = item.name
@@ -489,6 +668,7 @@
       dragSource.value = null
       dragGhost.value.show = false
     }
+    dragShift.value = false
   }
 
   // Craft slot handlers
@@ -691,7 +871,15 @@
     var item = inventory.getSecondItemAtSlot(slotIndex)
     if (!item) return
     if (e.button !== 0) return
+    if (e.ctrlKey) {
+      e.preventDefault()
+      quickTransferFromSecond(item)
+      return
+    }
     e.preventDefault()
+    dragShift.value = !!e.shiftKey
+    var recalled = inventory.recallAmount(item.name)
+    if (recalled != null) transferAmount.value = recalled
     dragStartPos = { x: e.clientX, y: e.clientY, slot: slotIndex, item: item, source: 'second' }
     dragTimer = setTimeout(function() {
       if (dragStartPos) {
@@ -728,10 +916,11 @@
           var type = inventory.invType
           var mapping = moveToActions[type]
           if (mapping) {
-            var amount = getTransferAmount(item)
+            var amount = getDragAmount(item)
             var payload = { item: item, type: item.type, number: amount, targetSlot: toSlot }
             payload[mapping.key] = mapping.getId()
             postNUI(mapping.action, payload)
+            inventory.rememberAmount(item.name, amount)
             playPopSound()
           }
         }
@@ -739,12 +928,13 @@
     // Second → Second (swap/merge/split within second inventory)
     } else if (dragSource.value === 'second' && dragFrom.value !== toSlot) {
       var fromItem = inventory.getSecondItemAtSlot(dragFrom.value)
-      var amount = fromItem ? getTransferAmount(fromItem) : 0
+      var amount = fromItem ? getDragAmount(fromItem) : 0
       if (inventory.invType === 'steal') {
         inventory.swapStealSlots(dragFrom.value, toSlot, amount > 0 ? amount : null)
       } else {
         inventory.swapSecondSlots(dragFrom.value, toSlot, amount > 0 ? amount : null)
       }
+      if (fromItem && amount > 0) inventory.rememberAmount(fromItem.name, amount)
       playPopSound()
     }
     dragFrom.value = null
@@ -1045,7 +1235,7 @@
                     </div>
                 </div>
                 <div class="w-full h-[80%] grid grid-cols-5 gap-1.5 content-start overflow-y-auto">
-                    <div v-for="i in 35" :key="i" @mousedown="onSecondMouseDown($event, i)" @mouseup="onSecondMouseUp(i)" class="aspect-square bg-white/[0.08] rounded transition-all hover:opacity-70 p-1 relative flex flex-col items-center justify-center" :class="{ 'opacity-30': dragFrom === i && dragSource === 'second' }">
+                    <div v-for="i in 35" :key="i" @mousedown="onSecondMouseDown($event, i)" @mouseup="onSecondMouseUp(i)" @dblclick="onSecondDoubleClick(i)" class="aspect-square bg-white/[0.08] rounded transition-all hover:opacity-70 p-1 relative flex flex-col items-center justify-center" :class="{ 'opacity-30': dragFrom === i && dragSource === 'second' }">
                         <template v-if="inventory.getSecondItemAtSlot(i)">
                             <span class="absolute top-0.5 right-1 text-[10px] text-white/40">{{ slotCount(inventory.getSecondItemAtSlot(i)) }}</span>
                             <span class="absolute top-0.5 left-1 text-[10px] text-white/40">{{ slotWeight(inventory.getSecondItemAtSlot(i)) }}kg</span>
@@ -1724,8 +1914,11 @@
                           <p v-if="w.registeredTo" class="text-[10px] text-[#2a6e3f] font-semibold">{{ uiText('registered_to', 'Registered to') }}: {{ w.registeredTo }}</p>
                           <p v-else class="text-[10px] text-[#935b5b]">{{ uiText('unregistered', 'Unregistered') }}</p>
                         </div>
-                        <div v-if="w.serial" @click="registryRegister(w.id, p.serverId)" class="px-3 h-[2vw] flex items-center cursor-pointer transition-all hover:opacity-70 bg-[url(./assets/buttons-background.png)]" style="background-size: 100% 100%;">
+                        <div v-if="w.serial && !w.registeredTo" @click="registryRegister(w.id, p.serverId)" class="px-3 h-[2vw] flex items-center cursor-pointer transition-all hover:opacity-70 bg-[url(./assets/buttons-background.png)]" style="background-size: 100% 100%;">
                           <p class="text-xs text-[#BEB592]">{{ uiText('register', 'Register') }}</p>
+                        </div>
+                        <div v-else-if="w.serial && w.registeredTo" class="px-3 h-[2vw] flex items-center bg-[url(./assets/buttons-background.png)] opacity-60" style="background-size: 100% 100%;">
+                          <p class="text-xs text-[#BEB592]">{{ uiText('registered', 'Registered') }}</p>
                         </div>
                       </div>
                     </template>
