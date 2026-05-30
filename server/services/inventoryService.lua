@@ -1904,23 +1904,41 @@ function InventoryService.getInventory()
 					characterInventory[item.id] = itemObj
 				end
 			end
-			-- Auto-assign slots to items that have NULL slot
+			-- Auto-assign slots to items that have NULL slot. Critical: assign
+			-- ABOVE the highest currently-used slot, never into a gap. If we
+			-- filled the lowest free slot here, a slotless item (created e.g.
+			-- via give-to-player or other flows that don't set a slot) would
+			-- immediately backfill any gap the player created by dropping an
+			-- item from slot 1-5, looking like the inventory auto-sorted.
 			local usedSlots = {}
+			local highest = 0
 			for _, itemObj in pairs(characterInventory) do
-				if itemObj:getSlot() then usedSlots[itemObj:getSlot()] = true end
-			end
-			-- Also account for weapon slots
-			for _, weapon in pairs(UsersWeapons.default) do
-				if weapon.propietary == sourceIdentifier and weapon:getSlot() then usedSlots[weapon:getSlot()] = true end
-			end
-			local nextFreeSlot = 1
-			for itemId, itemObj in pairs(characterInventory) do
-				if not itemObj:getSlot() then
-					while usedSlots[nextFreeSlot] do nextFreeSlot = nextFreeSlot + 1 end
-					itemObj:setSlot(nextFreeSlot)
-					DBService.UpdateItemSlot(sourceCharId, itemObj:getId(), nextFreeSlot)
-					usedSlots[nextFreeSlot] = true
+				local s = itemObj:getSlot()
+				if s then
+					usedSlots[s] = true
+					if s > highest then highest = s end
 				end
+			end
+			for _, weapon in pairs(UsersWeapons.default) do
+				if weapon.propietary == sourceIdentifier and weapon:getSlot() then
+					local s = weapon:getSlot()
+					usedSlots[s] = true
+					if s > highest then highest = s end
+				end
+			end
+			-- Sort slotless items by id so the assignment is deterministic
+			-- across reloads (pairs() iteration order is undefined in Lua).
+			local slotless = {}
+			for _, itemObj in pairs(characterInventory) do
+				if not itemObj:getSlot() then slotless[#slotless + 1] = itemObj end
+			end
+			table.sort(slotless, function(a, b) return tonumber(a:getId()) < tonumber(b:getId()) end)
+			local nextFreeSlot = highest + 1
+			for _, itemObj in ipairs(slotless) do
+				while usedSlots[nextFreeSlot] do nextFreeSlot = nextFreeSlot + 1 end
+				itemObj:setSlot(nextFreeSlot)
+				DBService.UpdateItemSlot(sourceCharId, itemObj:getId(), nextFreeSlot)
+				usedSlots[nextFreeSlot] = true
 			end
 
 			UsersInventories.default[sourceIdentifier] = characterInventory
@@ -1930,11 +1948,12 @@ function InventoryService.getInventory()
 
 
 		-- Collect this player's weapons, assigning a stable slot to any that
-		-- still have NULL slot (default from the loadout migration). Without
-		-- this, slot-less weapons get re-packed by the UI on every reload — the
-		-- player sees their inventory "auto-sort" after consuming an item.
+		-- still have NULL slot (default from the loadout migration). Slotless
+		-- weapons go ABOVE the highest used slot — same reason as the item
+		-- loop above: never backfill gaps left by the player.
 		local userWeapons = {}
 		local weaponUsedSlots = {}
+		local highestWeaponSlot = 0
 		local slotlessWeapons = {}
 		for _, weapon in pairs(UsersWeapons.default) do
 			if weapon.propietary == sourceIdentifier and weapon.charId == sourceCharId and weapon.currInv == "default" and weapon.dropped == 0 then
@@ -1942,6 +1961,7 @@ function InventoryService.getInventory()
 				local s = weapon:getSlot()
 				if s then
 					weaponUsedSlots[s] = true
+					if s > highestWeaponSlot then highestWeaponSlot = s end
 				else
 					slotlessWeapons[#slotlessWeapons + 1] = weapon
 				end
@@ -1950,12 +1970,16 @@ function InventoryService.getInventory()
 		if #slotlessWeapons > 0 then
 			-- Also avoid colliding with item slots already loaded.
 			for _, itemObj in pairs(UsersInventories.default[sourceIdentifier] or {}) do
-				if itemObj:getSlot() then weaponUsedSlots[itemObj:getSlot()] = true end
+				if itemObj:getSlot() then
+					local s = itemObj:getSlot()
+					weaponUsedSlots[s] = true
+					if s > highestWeaponSlot then highestWeaponSlot = s end
+				end
 			end
 			-- Sort by weapon id so the assignment is deterministic across reloads
 			-- (pairs() iteration order is otherwise undefined in Lua).
 			table.sort(slotlessWeapons, function(a, b) return tonumber(a:getId()) < tonumber(b:getId()) end)
-			local nextSlot = 1
+			local nextSlot = highestWeaponSlot + 1
 			for _, weapon in ipairs(slotlessWeapons) do
 				while weaponUsedSlots[nextSlot] do nextSlot = nextSlot + 1 end
 				weapon:setSlot(nextSlot)
