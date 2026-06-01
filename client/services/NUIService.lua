@@ -392,9 +392,8 @@ local function useWeapon(data)
 	local notdual = false
 	local canOneHandDualWield = isWeaponAGun and isWeaponOneHanded and not isLasso
 	local hasOtherDualWeapon = canOneHandDualWield and hasOtherUsedOneHandedWeapon(weaponId)
-	local hasWeapon = Citizen.InvokeNative(0x8DECB02F88F428BC, ped, weapName, 0, true)
 	local isWeaponThrowable = Citizen.InvokeNative(0x30E7C16B12DA8211, weapName)
-	local shouldEquipWeapon = (not UserWeapons[weaponId]:getUsed() and not hasWeapon) or isWeaponBow or isWeaponThrowable or isLasso
+	local shouldEquipWeapon = not UserWeapons[weaponId]:getUsed()
 	if canOneHandDualWield and hasCurrentWeapon and not Config.DuelWield then
 		return
 	elseif canOneHandDualWield and Config.DuelWield and not UserWeapons[weaponId]:getUsed() then

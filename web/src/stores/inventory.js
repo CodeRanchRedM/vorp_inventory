@@ -6,29 +6,30 @@ function assignSlots(itemList) {
   var usedSlots = {}
   var result = []
   var deferred = []
+  var highest = 0
 
-  // Pass 1: locked/virtual items (money, gold, gunbelt) own their fixed slots.
   for (var i = 0; i < itemList.length; i++) {
     var it = itemList[i]
     if (it.locked && it.slot != null && !usedSlots[it.slot]) {
       usedSlots[it.slot] = true
+      if (it.slot > highest) highest = it.slot
       result.push(Object.assign({}, it))
     }
   }
-  // Pass 2: keep items whose slot is free; defer slot collisions and slotless items.
-  // This prevents two items sharing a slot, which would hide one in the slot map.
   for (var i = 0; i < itemList.length; i++) {
     var it = itemList[i]
     if (it.locked && it.slot != null) continue
     if (it.slot != null && !usedSlots[it.slot]) {
       usedSlots[it.slot] = true
+      if (it.slot > highest) highest = it.slot
       result.push(Object.assign({}, it))
     } else {
       deferred.push(it)
     }
   }
-  // Pass 3: assign the next free slot to every deferred item.
-  var nextSlot = 1
+  // Slotless items go above the highest used slot so they never backfill a gap
+  // a player just created by dragging an item out of slot 1-5.
+  var nextSlot = highest + 1
   for (var i = 0; i < deferred.length; i++) {
     while (usedSlots[nextSlot]) nextSlot++
     var copy = Object.assign({}, deferred[i])
