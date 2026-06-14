@@ -20,6 +20,11 @@
     return '../items/' + name + '.png'
   }
 
+  function shortAmmoName(value) {
+    if (!value) return ''
+    return String(value).replace(/^AMMO_/, '').replace(/_/g, ' ')
+  }
+
   function onImgError(e) {
     e.target.src = fallbackImage
   }
@@ -778,6 +783,45 @@
   function getWeaponComponents(item) {
     if (!item || item.type !== 'item_weapon' || !item.comps || !item.comps.length) return []
     return item.comps
+  }
+
+
+
+  function getWeaponAmmoTypeRows(item) {
+    if (!item || item.type !== 'item_weapon') return []
+    var allowed = item.ammoAllowed || []
+    var rows = []
+    var labels = inventory.ammolabels || {}
+    var beltAmmo = inventory.allplayerammo || {}
+    var weaponAmmo = item.ammo || {}
+
+    for (var i = 0; i < allowed.length; i++) {
+      var ammoType = allowed[i]
+      rows.push({
+        key: ammoType,
+        label: labels[ammoType] || ammoType,
+        belt: Number(beltAmmo[ammoType]) || 0,
+        weapon: Number(weaponAmmo[ammoType]) || 0,
+        active: item.currentAmmoType === ammoType,
+      })
+    }
+
+    return rows
+  }
+
+  function canShowWeaponAmmoSelector(item) {
+    return !!(item && item.type === 'item_weapon' && (item.used || item.used2) && getWeaponAmmoTypeRows(item).length > 0)
+  }
+
+  function onSetWeaponAmmoType(item, ammoType) {
+    if (!item || !ammoType) return
+    postNUI('setWeaponAmmoType', {
+      id: item.id,
+      weaponName: item.name,
+      ammoType: ammoType,
+    }).catch(function(){})
+    playPopSound()
+    contextMenu.value.show = false
   }
 
   function onKeyDown(e) {
@@ -1787,6 +1831,34 @@
                     <p class="text-xs text-[#565353]">{{ c.label }}</p>
                   </div>
                 </div>
+                <!-- Weapon Ammo Type Selector -->
+                <div v-if="canShowWeaponAmmoSelector(contextMenu.item)" class="mt-4 w-full flex flex-col gap-1">
+                  <div class="w-full flex justify-between items-center">
+                    <p>{{ uiText('ammo_type', 'Ammo Type') }}</p>
+                    <div class="w-[1.75vw] h-[1.75vw] rounded-md bg-black/10 flex justify-center items-center">
+                      <img src="./assets/hand-icon.png">
+                    </div>
+                  </div>
+                  <div class="w-full h-px bg-black/20"></div>
+                  <div class="w-full flex flex-col gap-1 max-h-[18vh] overflow-y-auto pr-1">
+                    <div v-for="ammo in getWeaponAmmoTypeRows(contextMenu.item)"
+                         :key="ammo.key"
+                         @click="onSetWeaponAmmoType(contextMenu.item, ammo.key)"
+                         class="w-full p-2 cursor-pointer transition-all hover:opacity-80 bg-[url(./assets/settings-item-background.png)]"
+                         :class="ammo.active ? 'ring-1 ring-[#BEB592]/60' : ''"
+                         style="background-size: 100% 100%;">
+                      <div class="w-full flex justify-between items-center gap-2">
+                        <p class="text-sm text-[#1f140b]">{{ ammo.label }}</p>
+                        <p v-if="ammo.active" class="text-xs text-[#7b2418]">{{ uiText('active', 'Active') }}</p>
+                      </div>
+                      <div class="w-full flex justify-between items-center mt-1">
+                        <p class="text-xs text-[#565353]">{{ ammo.key }}</p>
+                        <p class="text-xs text-[#565353]">{{ uiText('weapon', 'Weapon') }}: {{ ammo.weapon }} • {{ uiText('belt', 'Belt') }}: {{ ammo.belt }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Action buttons (Use / Give) — only shown when ContextMenuActions.Enabled -->
                 <div v-if="isContextMenuActionsEnabled()" class="mt-4 w-full flex gap-2">
                   <div v-if="canUseItem(contextMenu.item)"
@@ -1969,6 +2041,26 @@
             </div>
           </div>
       </div>
+      </Transition>
+
+      <Transition name="fade">
+        <div v-if="inventory.weaponAmmoHud && inventory.weaponAmmoHud.show" class="fixed right-[2.15vw] bottom-[3.8vw] z-[30] pointer-events-none select-none">
+          <div class="flex flex-col items-end leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+            <div class="flex items-baseline gap-[0.32vw] text-[#f1dfb5]">
+              <span class="text-[1.05vw] font-bold tracking-[0.02em]">{{ inventory.weaponAmmoHud.loaded || 0 }}</span>
+              <span class="text-[0.72vw] text-[#bda879]">/</span>
+              <span class="text-[0.82vw] font-semibold text-[#d8c18b]">{{ inventory.weaponAmmoHud.belt || 0 }}</span>
+            </div>
+            <div class="mt-[0.22vw] flex items-center gap-[0.35vw] text-[0.52vw] uppercase tracking-[0.16em] text-[#b9aa86]/90">
+              <span>Loaded</span>
+              <span class="text-[#8f7551]">•</span>
+              <span>Reserve</span>
+            </div>
+            <div class="mt-[0.18vw] max-w-[10vw] truncate text-right text-[0.52vw] uppercase tracking-[0.12em] text-[#8f8265]/85">
+              {{ inventory.weaponAmmoHud.ammoLabel || shortAmmoName(inventory.weaponAmmoHud.ammoType) }}
+            </div>
+          </div>
+        </div>
       </Transition>
 
       <div class="fixed bottom-20 left-0 right-0 flex justify-center gap-1.5 items-end pointer-events-none z-[5]">

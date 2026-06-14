@@ -18,10 +18,15 @@ InventoryApiService.addItem = function(itemData)
     end
     NUIService.LoadInv()
     if added > 0 then
-        SendNUIMessage({ action = "itemNotification", ["type"] = "add", name = itemData.name, label = itemData.label, count = added })
+        SendNUIMessage({
+            action = "itemNotification",
+            ["type"] = "add",
+            name = itemData.name,
+            label = itemData.label,
+            count = added
+        })
     end
 end
-
 
 InventoryApiService.subItem = function(id, qty, metadata)
     if UserInventory[id] == nil then
@@ -40,7 +45,13 @@ InventoryApiService.subItem = function(id, qty, metadata)
     end
     NUIService.LoadInv()
     if removed > 0 then
-        SendNUIMessage({ action = "itemNotification", ["type"] = "remove", name = name, label = label, count = removed })
+        SendNUIMessage({
+            action = "itemNotification",
+            ["type"] = "remove",
+            name = name,
+            label = label,
+            count = removed
+        })
     end
 end
 
@@ -52,7 +63,6 @@ InventoryApiService.SetItemMetadata = function(id, metadata)
     NUIService.LoadInv()
 end
 
-
 InventoryApiService.subWeapon = function(weaponId)
     if UserWeapons[weaponId] ~= nil then
         if UserWeapons[weaponId]:getUsed() then
@@ -63,7 +73,6 @@ InventoryApiService.subWeapon = function(weaponId)
     end
     NUIService.LoadInv()
 end
-
 
 InventoryApiService.addWeaponBullets = function(bulletType, qty)
     SetPedAmmoByType(PlayerPedId(), joaat(bulletType), qty)
@@ -79,7 +88,6 @@ InventoryApiService.subWeaponBullets = function(weaponId, bulletType, qty)
     end
     NUIService.LoadInv()
 end
-
 
 InventoryApiService.addComponent = function(weaponId, component)
     if UserWeapons[weaponId] ~= nil then
@@ -98,16 +106,23 @@ InventoryApiService.addComponent = function(weaponId, component)
     end
 end
 
-
 InventoryApiService.subComponent = function(weaponId, component)
     if UserWeapons[weaponId] ~= nil then
+        local found = false
+
         for _, v in pairs(UserWeapons[weaponId]:getAllComponents()) do
             if v == component then
-                return
+                found = true
+                break
             end
         end
 
+        if not found then
+            return
+        end
+
         UserWeapons[weaponId]:quitComponent(component)
+
         if UserWeapons[weaponId]:getUsed() then
             RemoveWeaponFromPed(PlayerPedId(), joaat(UserWeapons[weaponId]:getName()), true, 0)
             UserWeapons[weaponId]:equipwep()

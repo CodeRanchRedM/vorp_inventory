@@ -314,7 +314,7 @@ end
 function Weapon:quitComponent(component)
     local componentExists = FindIndexOf(self.components, component)
     if componentExists then
-        table.remove(self.component, componentExists)
+        table.remove(self.components, componentExists)
         return true
     end
     return false
