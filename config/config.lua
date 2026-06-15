@@ -495,7 +495,7 @@ Config = {
     -- Cinderwake custom ammo HUD
     -- Shows loaded / reserve ammo while a compatible weapon is equipped.
     AmmoHud = {
-        Enabled = false -- set false to disable the ammo HUD completely
+        Enabled = true -- set false to disable the ammo HUD completely
     },
 
     -- dropp items can have a diferent model added them here item name and object

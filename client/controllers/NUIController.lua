@@ -29,6 +29,7 @@ RegisterNUICallback('DropSwapSlot', NUIService.NUIDropSwapSlot)
 RegisterNUICallback('DropMergeSlot', NUIService.NUIDropMergeSlot)
 RegisterNUICallback('DropSplitSlot', NUIService.NUIDropSplitSlot)
 RegisterNUICallback('PickupFromDrop', NUIService.NUIPickupFromDrop)
+RegisterNUICallback('setWeaponAmmoType', NUIService.NUISetWeaponAmmoType)
 
 
 RegisterNetEvent("vorp_inventory:ReloadInv")

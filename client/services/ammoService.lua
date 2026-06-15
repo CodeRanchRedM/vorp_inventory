@@ -138,3 +138,88 @@ CreateThread(function()
         Wait(10000) -- update every 10 seconds
     end
 end)
+
+--* WEAPON AMMO HUD THREAD
+CreateThread(function()
+    if not Config.AmmoHud or not Config.AmmoHud.Enabled then
+        return
+    end
+
+    repeat Wait(2000) until LocalPlayer.state.IsInSession
+
+    local lastShown = false
+    local lastSig = ""
+
+    local function hide()
+        if lastShown then
+            SendNUIMessage({ action = "weaponAmmoHud", info = { show = false } })
+            lastShown = false
+            lastSig = ""
+        end
+    end
+
+    while true do
+        local sleep = 250
+        local ped = PlayerPedId()
+        local _, weaponHash = GetCurrentPedWeapon(ped, false, 0, false)
+
+        if not weaponHash or weaponHash == 0 or weaponHash == `WEAPON_UNARMED` then
+            hide()
+        else
+            local isMelee = IsWeaponMeleeWeapon(weaponHash) == 1
+            local wepgroup = GetWeapontypeGroup(weaponHash)
+            local ammotypes = SharedData.AmmoTypes and SharedData.AmmoTypes[wepgroup]
+
+            if isMelee or not ammotypes then
+                hide()
+            else
+                local weaponObject = GetPedWeaponObject(ped, true)
+                local currentAmmoHash = weaponObject and GetCurrentPedWeaponAmmoType(ped, weaponObject) or 0
+                local currentAmmoType = nil
+                for ammoName, _ in pairs(ammotypes) do
+                    if joaat(ammoName) == currentAmmoHash then
+                        currentAmmoType = ammoName
+                        break
+                    end
+                end
+
+                if not currentAmmoType then
+                    -- Fall back to the first type that has belt ammo.
+                    for ammoName, _ in pairs(ammotypes) do
+                        local qty = playerammoinfo.ammo and playerammoinfo.ammo[ammoName]
+                        if qty and qty > 0 then
+                            currentAmmoType = ammoName
+                            break
+                        end
+                    end
+                end
+
+                if not currentAmmoType then
+                    hide()
+                else
+                    local loaded = GetAmmoInClip(ped, weaponHash) or 0
+                    local belt = (playerammoinfo.ammo and playerammoinfo.ammo[currentAmmoType]) or 0
+                    local label = (SharedData.AmmoLabels and SharedData.AmmoLabels[currentAmmoType]) or currentAmmoType
+                    local sig = currentAmmoType .. ":" .. tostring(loaded) .. ":" .. tostring(belt)
+
+                    if sig ~= lastSig then
+                        SendNUIMessage({
+                            action = "weaponAmmoHud",
+                            info = {
+                                show = true,
+                                loaded = loaded,
+                                belt = belt,
+                                ammoType = currentAmmoType,
+                                ammoLabel = label,
+                            }
+                        })
+                        lastSig = sig
+                        lastShown = true
+                    end
+                end
+            end
+        end
+
+        Wait(sleep)
+    end
+end)

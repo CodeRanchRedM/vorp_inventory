@@ -512,6 +512,55 @@ end
 
 exports("useItem", useItem) -- not tested yet
 
+function NUIService.NUISetWeaponAmmoType(data)
+    local weaponId = tonumber(data and data.id)
+    local ammoType = data and data.ammoType
+    if not weaponId or not ammoType or not UserWeapons[weaponId] then
+        return
+    end
+
+    local weapon = UserWeapons[weaponId]
+    if not (weapon:getUsed() or weapon:getUsed2()) then
+        return
+    end
+
+    local weaponHash = joaat(weapon:getName())
+    local weaponGroup = GetWeapontypeGroup(weaponHash)
+    local ammoTypes = SharedData.AmmoTypes and SharedData.AmmoTypes[weaponGroup]
+    if not ammoTypes or not ammoTypes[ammoType] then
+        return
+    end
+
+    local ped = PlayerPedId()
+    local ammoTypeHash = joaat(ammoType)
+
+    -- Pause the ammo-saving thread so it doesn't write the transient ped state back to the belt.
+    TriggerEvent("vorpinventory:ammoUpdateToggle", false)
+
+    -- Make sure the selected type has its full belt count on the ped, then switch the weapon's
+    -- active ammo type. RDR2 picks the active type from what's currently loaded on the ped.
+    for typeName, _ in pairs(ammoTypes) do
+        local qty = PlayerAmmoInfo and PlayerAmmoInfo.ammo and PlayerAmmoInfo.ammo[typeName] or 0
+        SetPedAmmoByType(ped, joaat(typeName), qty)
+    end
+
+    -- _SET_PED_AMMO_TYPE: marks the given ammo type as the active one for the ped's weapon.
+    Citizen.InvokeNative(0x4F3E2AA67D9E435E, ped, ammoTypeHash)
+    Citizen.InvokeNative(0xADF692B254977C0C, ped, weaponHash, ammoTypeHash, 1, 0, 0)
+
+    -- Force the game to re-resolve the active ammo by re-equipping the weapon.
+    SetCurrentPedWeapon(ped, `WEAPON_UNARMED`, true, 0, false, false)
+    Wait(50)
+    SetCurrentPedWeapon(ped, weaponHash, true, 0, false, false)
+
+    weapon.currentAmmoType = ammoType
+
+    TriggerEvent("vorpinventory:ammoUpdateToggle", true)
+
+    SendNUIMessage({ action = "updateammo", ammo = PlayerAmmoInfo and PlayerAmmoInfo.ammo or {} })
+    NUIService.LoadInv()
+end
+
 function NUIService.SetWornClothing(worn)
     SendNUIMessage({
         action = "setWornClothing",
