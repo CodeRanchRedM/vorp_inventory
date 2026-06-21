@@ -533,15 +533,21 @@ function NUIService.NUISetWeaponAmmoType(data)
 
     local ped = PlayerPedId()
     local ammoTypeHash = joaat(ammoType)
+    local selectedQty = PlayerAmmoInfo and PlayerAmmoInfo.ammo and tonumber(PlayerAmmoInfo.ammo[ammoType]) or 0
+    if selectedQty <= 0 then
+        return
+    end
 
     -- Pause the ammo-saving thread so it doesn't write the transient ped state back to the belt.
     TriggerEvent("vorpinventory:ammoUpdateToggle", false)
 
-    -- Make sure the selected type has its full belt count on the ped, then switch the weapon's
-    -- active ammo type. RDR2 picks the active type from what's currently loaded on the ped.
+    -- Force the game to resolve the requested type by making it the only available
+    -- ammo during the re-equip, then restore the rest of the belt reserves.
+    local ammoSnapshot = {}
     for typeName, _ in pairs(ammoTypes) do
-        local qty = PlayerAmmoInfo and PlayerAmmoInfo.ammo and PlayerAmmoInfo.ammo[typeName] or 0
-        SetPedAmmoByType(ped, joaat(typeName), qty)
+        local qty = PlayerAmmoInfo and PlayerAmmoInfo.ammo and tonumber(PlayerAmmoInfo.ammo[typeName]) or 0
+        ammoSnapshot[typeName] = qty
+        SetPedAmmoByType(ped, joaat(typeName), typeName == ammoType and qty or 0)
     end
 
     -- _SET_PED_AMMO_TYPE: marks the given ammo type as the active one for the ped's weapon.
@@ -552,6 +558,11 @@ function NUIService.NUISetWeaponAmmoType(data)
     SetCurrentPedWeapon(ped, `WEAPON_UNARMED`, true, 0, false, false)
     Wait(50)
     SetCurrentPedWeapon(ped, weaponHash, true, 0, false, false)
+    Wait(50)
+
+    for typeName, qty in pairs(ammoSnapshot) do
+        SetPedAmmoByType(ped, joaat(typeName), qty)
+    end
 
     weapon.currentAmmoType = ammoType
 
@@ -665,6 +676,7 @@ local function loadWeapons()
         weapon.comps = currentWeapon:getComps()
         weapon.ammo = currentWeapon:getAllAmmo() or {}
         weapon.ammoAllowed = {}
+        weapon.currentAmmoType = currentWeapon.currentAmmoType
 
         local weaponHash = joaat(currentWeapon:getName())
         local weaponGroup = GetWeapontypeGroup(weaponHash)
@@ -691,6 +703,17 @@ local function loadWeapons()
                         weapon.currentAmmoType = ammoName
                         break
                     end
+                end
+            end
+        end
+
+        if not weapon.currentAmmoType and ammoTypes then
+            for ammoName, _ in pairs(ammoTypes) do
+                local beltAmount = PlayerAmmoInfo and PlayerAmmoInfo.ammo and PlayerAmmoInfo.ammo[ammoName] or 0
+                local weaponAmount = currentWeapon:getAmmo(ammoName) or 0
+                if beltAmount > 0 or weaponAmount > 0 then
+                    weapon.currentAmmoType = ammoName
+                    break
                 end
             end
         end

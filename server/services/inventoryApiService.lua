@@ -72,6 +72,15 @@ local function respond(cb, result, message)
 	return result
 end
 
+local function normalizeAmmoType(ammoType)
+	if not ammoType then return nil end
+	local mapped = SharedData.AmmoItems and SharedData.AmmoItems[ammoType]
+	if type(mapped) == "table" then
+		return mapped.type or mapped.ammoType or mapped[1]
+	end
+	return mapped or ammoType
+end
+
 
 ---private function to check if item exist
 function InventoryAPI.canCarryAmountItem(player, amount, cb)
@@ -1186,17 +1195,31 @@ function InventoryAPI.addBullets(player, bulletType, amount, cb)
 	end
 	sourceCharacter = sourceCharacter.getUsedCharacter
 	local charidentifier = sourceCharacter.charIdentifier
-	local ammo = AmmoData[_source].ammo
-
-	if ammo and ammo[bulletType] then
-		ammo[bulletType] = tonumber(ammo[bulletType]) + amount
-	else
-		ammo[bulletType] = amount
+	local ammoType = normalizeAmmoType(bulletType)
+	local addAmount = tonumber(amount) or 0
+	if not ammoType or addAmount <= 0 then
+		return respond(cb, false)
 	end
+
+	AmmoData[_source] = AmmoData[_source] or { charidentifier = charidentifier, ammo = {} }
+	AmmoData[_source].charidentifier = charidentifier
+	AmmoData[_source].ammo = AmmoData[_source].ammo or {}
+	local ammo = AmmoData[_source].ammo
+	local maxAmmo = SharedData.MaxAmmo and SharedData.MaxAmmo[ammoType]
+	local current = tonumber(ammo[ammoType]) or 0
+	if maxAmmo then
+		addAmount = math.min(addAmount, math.max(0, maxAmmo - current))
+	end
+
+	if addAmount <= 0 then
+		return respond(cb, false)
+	end
+
+	ammo[ammoType] = current + addAmount
 
 	AmmoData[_source].ammo = ammo
 	TriggerClientEvent("vorpinventory:updateuiammocount", _source, AmmoData[_source].ammo)
-	TriggerClientEvent("vorpCoreClient:addBullets", _source, bulletType, ammo[bulletType])
+	TriggerClientEvent("vorpCoreClient:addBullets", _source, ammoType, ammo[ammoType])
 	TriggerClientEvent("vorpinventory:recammo", _source, AmmoData[_source])
 	local query1 = 'UPDATE characters SET ammo = @ammo WHERE charidentifier = @charidentifier'
 	local params1 = { charidentifier = charidentifier, ammo = json.encode(ammo) }

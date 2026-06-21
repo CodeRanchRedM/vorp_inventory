@@ -75,7 +75,11 @@ InventoryApiService.subWeapon = function(weaponId)
 end
 
 InventoryApiService.addWeaponBullets = function(bulletType, qty)
+    PlayerAmmoInfo = PlayerAmmoInfo or { ammo = {} }
+    PlayerAmmoInfo.ammo = PlayerAmmoInfo.ammo or {}
+    PlayerAmmoInfo.ammo[bulletType] = tonumber(qty) or 0
     SetPedAmmoByType(PlayerPedId(), joaat(bulletType), qty)
+    SendNUIMessage({ action = "updateammo", ammo = PlayerAmmoInfo.ammo })
     NUIService.LoadInv()
 end
 

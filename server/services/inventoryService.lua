@@ -27,6 +27,15 @@ local function getOrCreateDropLocation(coords)
 	return dropId
 end
 
+local function getAmmoTypeFromItem(itemName)
+	if not itemName or not SharedData.AmmoItems then return nil end
+	local mapped = SharedData.AmmoItems[itemName]
+	if type(mapped) == "table" then
+		return mapped.type or mapped.ammoType or mapped[1]
+	end
+	return mapped
+end
+
 local function addToDropLocationSlot(dropId, targetSlot, uid, pickupData)
 	if not DropLocations[dropId] then return end
 	local slots = DropLocations[dropId].slots
@@ -574,7 +583,33 @@ function InventoryService.UseItem(data)
 	if not svItem then return end
 
 	local item = userInventory[itemId]
-	if not item or not UsableItemsFunctions[itemName] then return end
+	if not item then return end
+
+	local ammoType = getAmmoTypeFromItem(itemName)
+	if ammoType then
+		local maxAmmo = SharedData.MaxAmmo and SharedData.MaxAmmo[ammoType]
+		local currentAmmo = AmmoData[_source] and AmmoData[_source].ammo and tonumber(AmmoData[_source].ammo[ammoType]) or 0
+		local amount = 1
+
+		if maxAmmo and currentAmmo >= maxAmmo then
+			Core.NotifyRightTip(_source, T("fullammo") or "Your ammo is full", 2000)
+			return
+		end
+
+		if maxAmmo then
+			amount = math.min(amount, maxAmmo - currentAmmo)
+		end
+
+		local added = InventoryAPI.addBullets(_source, ammoType, amount)
+		if added then
+			InventoryAPI.subItemID(_source, itemId, nil, false, 1)
+			local label = SharedData.AmmoLabels and SharedData.AmmoLabels[ammoType] or ammoType
+			Core.NotifyRightTip(_source, (T("recammo") or "Ammo: ") .. label .. " : " .. amount, 2000)
+		end
+		return
+	end
+
+	if not UsableItemsFunctions[itemName] then return end
 
 	local arguments <const> = {
 		source = _source,

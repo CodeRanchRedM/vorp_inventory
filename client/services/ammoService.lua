@@ -12,7 +12,9 @@ local function addAmmoToPed(ammoData)
 end
 
 RegisterNetEvent("vorpinventory:recammo", function(ammoData)
-    playerammoinfo.ammo = ammoData.ammo
+    playerammoinfo.ammo = ammoData.ammo or {}
+    playerammoinfo.charidentifier = ammoData.charidentifier
+    SendNUIMessage({ action = "updateammo", ammo = playerammoinfo.ammo })
 end)
 
 RegisterNetEvent("vorpinventory:loaded", function()

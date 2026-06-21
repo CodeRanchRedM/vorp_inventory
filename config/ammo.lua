@@ -111,6 +111,85 @@ SharedData.AmmoLabels = {
     AMMO_MOONSHINEJUG_MP = "Moonshine Liters",
 }
 
+-- Inventory item names that should load ammo into the gun belt when used.
+-- Keep the value as the engine ammo type stored in characters.ammo.
+SharedData.AmmoItems = {
+    ammopistolnormal = "AMMO_PISTOL",
+    ammopistolexpress = "AMMO_PISTOL_EXPRESS",
+    ammopistolexplosive = "AMMO_PISTOL_EXPRESS_EXPLOSIVE",
+    ammopistolvelocity = "AMMO_PISTOL_HIGH_VELOCITY",
+    ammopistolsplitpoint = "AMMO_PISTOL_SPLIT_POINT",
+    ammo_bullet_pistol = "AMMO_PISTOL",
+
+    ammorepeaternormal = "AMMO_REPEATER",
+    ammorepeaterexpress = "AMMO_REPEATER_EXPRESS",
+    ammorepeaterexplosive = "AMMO_REPEATER_EXPRESS_EXPLOSIVE",
+    ammorepeatervelocity = "AMMO_REPEATER_HIGH_VELOCITY",
+    ammorepeatersplitpoint = "AMMO_REPEATER_SPLIT_POINT",
+    ammo_bullet_repeater = "AMMO_REPEATER",
+
+    ammorevolvernormal = "AMMO_REVOLVER",
+    ammorevolverexpress = "AMMO_REVOLVER_EXPRESS",
+    ammorevolverexplosive = "AMMO_REVOLVER_EXPRESS_EXPLOSIVE",
+    ammorevolvervelocity = "AMMO_REVOLVER_HIGH_VELOCITY",
+    ammorevolversplitpoint = "AMMO_REVOLVER_SPLIT_POINT",
+    ammo_bullet_revolver = "AMMO_REVOLVER",
+
+    ammoriflenormal = "AMMO_RIFLE",
+    ammorifleexpress = "AMMO_RIFLE_EXPRESS",
+    ammorifleexplosive = "AMMO_RIFLE_EXPRESS_EXPLOSIVE",
+    ammoriflevelocity = "AMMO_RIFLE_HIGH_VELOCITY",
+    ammoriflesplitpoint = "AMMO_RIFLE_SPLIT_POINT",
+    ammoelephant = "AMMO_RIFLE_ELEPHANT",
+    ammovarmint = "AMMO_22",
+    ammovarminttranq = "AMMO_22_TRANQUILIZER",
+    ammo_bullet_rifle = "AMMO_RIFLE",
+    ammo_bullet_varmin = "AMMO_22",
+    ammoarrmownormal = "AMMO_22",
+    ammorrmownormal = "AMMO_22",
+
+    ammoshotgunnormal = "AMMO_SHOTGUN",
+    ammoshotgunincendiary = "AMMO_SHOTGUN_BUCKSHOT_INCENDIARY",
+    ammoshotgunslug = "AMMO_SHOTGUN_SLUG",
+    ammo_shotgun = "AMMO_SHOTGUN",
+    ammo_shotgun_buckshot_incendiary = "AMMO_SHOTGUN_BUCKSHOT_INCENDIARY",
+    ammo_shotgun_slug = "AMMO_SHOTGUN_SLUG",
+    ammo_shotgun_slug_explosive = "AMMO_SHOTGUN_SLUG_EXPLOSIVE",
+
+    ammoarrowimproved = "AMMO_ARROW_IMPROVED",
+    ammoarrowdynamite = "AMMO_ARROW_DYNAMITE",
+    ammoarrowfire = "AMMO_ARROW_FIRE",
+    ammoarrowpoison = "AMMO_ARROW_POISON",
+    ammoarrowsmallgame = "AMMO_ARROW_SMALL_GAME",
+    ammo_arrow = "AMMO_ARROW",
+    ammo_bow_arrow = "AMMO_ARROW",
+    ammo_bow_arrowfire = "AMMO_ARROW_FIRE",
+    ammo_arrow_fire = "AMMO_ARROW_FIRE",
+    ammo_arrow_improved = "AMMO_ARROW_IMPROVED",
+    ammo_arrow_poison = "AMMO_ARROW_POISON",
+    ammo_arrow_small_game = "AMMO_ARROW_SMALL_GAME",
+    ammo_arrow_dynamite = "AMMO_ARROW_DYNAMITE",
+
+    ammoknives = "AMMO_THROWING_KNIVES",
+    ammo_throwing_knives_normal = "AMMO_THROWING_KNIVES",
+    ammo_throwing_knives_improved = "AMMO_THROWING_KNIVES",
+    ammo_throwing_knives_poison = "AMMO_THROWING_KNIVES",
+    ammotomahawk = "AMMO_TOMAHAWK",
+    ammo_tomahawk = "AMMO_TOMAHAWK",
+    ammo_tomahawk_improved = "AMMO_TOMAHAWK",
+    ammo_tomahawk_homing = "AMMO_TOMAHAWK",
+    ammo_tomahawk_ancient = "AMMO_TOMAHAWK",
+    ammobolla = "AMMO_BOLAS",
+    ammodynamite = "AMMO_DYNAMITE",
+    ammovoldynamite = "AMMO_DYNAMITE_VOLATILE",
+    ammo_dynamite_normal = "AMMO_DYNAMITE",
+    ammo_dynamite_volatile = "AMMO_DYNAMITE_VOLATILE",
+    ammomolotov = "AMMO_MOLOTOV",
+    ammovolmolotov = "AMMO_MOLOTOV_VOLATILE",
+    ammo_fire_bottle_normal = "AMMO_MOLOTOV",
+    ammo_fire_bottle_volatile = "AMMO_MOLOTOV_VOLATILE",
+}
+
 -- dont touch this
 SharedData.AmmoTypes  = {
 
