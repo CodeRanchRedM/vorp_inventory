@@ -64,6 +64,9 @@ local hotbarModifierControls = {
 
 local lastHotbarToggle = 0
 local function toggleHotbar()
+    if Config.WeaponWheel and Config.WeaponWheel.Enabled then
+        return
+    end
     if GetGameTimer() - lastHotbarToggle < 250 then return end
     lastHotbarToggle = GetGameTimer()
     print("^2[vorp_inventory]^7 Hotbar toggled.")

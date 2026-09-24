@@ -235,7 +235,8 @@ Config = {
         HideRightColumnButtons = true -- also hide the existing Use/Give buttons next to the inventory
     },
 
-    -- DONOT EDIT FOR NOW
+    -- Use RedM's native weapon wheel instead of the inventory hotbar.
+    -- When enabled, owned weapons are added to the ped and TAB/1-5 are left to RedM.
     WeaponWheel = {
         Enabled = false
     },

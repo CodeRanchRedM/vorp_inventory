@@ -11,10 +11,15 @@ RegisterNetEvent("vorpInventory:setWeaponCustomDesc", InventoryService.setWeapon
 RegisterNetEvent("vorpInventory:removeWeapon", function(weaponId)
 	weaponId = tonumber(weaponId)
 	if weaponId and UserWeapons[weaponId] then
-		if UserWeapons[weaponId]:getUsed() or UserWeapons[weaponId]:getUsed2() then
+		if Config.WeaponWheel and Config.WeaponWheel.Enabled then
+			RemoveWeaponFromPed(PlayerPedId(), joaat(UserWeapons[weaponId]:getName()), true, 0)
+		elseif UserWeapons[weaponId]:getUsed() or UserWeapons[weaponId]:getUsed2() then
 			UserWeapons[weaponId]:UnequipWeapon()
 		end
 		UserWeapons[weaponId] = nil
+		if InventoryService.SyncWeaponWheel then
+			InventoryService.SyncWeaponWheel()
+		end
 		NUIService.LoadInv()
 	end
 end)

@@ -37,9 +37,14 @@ end)
 
 RegisterNetEvent("vorpinventory:setammotoped", function(ammoData)
     local PlayerPedId <const> = PlayerPedId()
-    RemoveAllPedWeapons(PlayerPedId, true, true)
+    if not Config.WeaponWheel or not Config.WeaponWheel.Enabled then
+        RemoveAllPedWeapons(PlayerPedId, true, true)
+    end
     RemoveAllPedAmmo(PlayerPedId)
     addAmmoToPed(ammoData)
+    if Config.WeaponWheel and Config.WeaponWheel.Enabled and InventoryService.SyncWeaponWheel then
+        InventoryService.SyncWeaponWheel()
+    end
 end)
 
 RegisterNetEvent("vorpinventory:updateinventory", function()
@@ -94,11 +99,18 @@ CreateThread(function()
                                 local shotsFired = playerammoinfo.ammo[ammo_name] - ammoQty
                                 local loss = shotsFired * (Config.WeaponDurability.DurabilityLossPerShot or 0.5)
                                 for _, wp in pairs(UserWeapons) do
-                                    if wp:getUsed() and GetWeapontypeGroup(joaat(wp:getName())) == wepgroup then
+                                    local isCurrentWheelWeapon = Config.WeaponWheel and Config.WeaponWheel.Enabled
+                                        and joaat(wp:getName()) == wephash
+                                    if (wp:getUsed() or isCurrentWheelWeapon)
+                                        and GetWeapontypeGroup(joaat(wp:getName())) == wepgroup then
                                         wp:setDurability(math.max(0, wp:getDurability() - loss))
                                         durabilityChanged[wp:getId()] = wp:getDurability()
                                         if wp:getDurability() <= 0 then
-                                            wp:UnequipWeapon()
+                                            if Config.WeaponWheel and Config.WeaponWheel.Enabled then
+                                                RemoveWeaponFromPed(playerPedId, joaat(wp:getName()), true, 0)
+                                            else
+                                                wp:UnequipWeapon()
+                                            end
                                             Core.NotifyRightTip(T("weaponBroken") or "This weapon is broken", 3000)
                                         end
                                     end

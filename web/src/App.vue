@@ -608,7 +608,8 @@
   }
   function onContextUse(item) {
     if (!canUseItem(item)) return
-    if (item.type === 'item_weapon' && (item.used || item.used2)) {
+    var nativeWheelEnabled = !!(inventory.LuaConfig && inventory.LuaConfig.WeaponWheel && inventory.LuaConfig.WeaponWheel.Enabled)
+    if (item.type === 'item_weapon' && !nativeWheelEnabled && (item.used || item.used2)) {
       postNUI('UnequipWeapon', { item: item.name, id: item.id })
     } else {
       var useAmt = getTransferAmount(item) || 1
@@ -810,7 +811,8 @@
   }
 
   function canShowWeaponAmmoSelector(item) {
-    return !!(item && item.type === 'item_weapon' && (item.used || item.used2) && getWeaponAmmoTypeRows(item).length > 0)
+    var nativeWheelEnabled = !!(inventory.LuaConfig && inventory.LuaConfig.WeaponWheel && inventory.LuaConfig.WeaponWheel.Enabled)
+    return !!(item && item.type === 'item_weapon' && (nativeWheelEnabled || item.used || item.used2) && getWeaponAmmoTypeRows(item).length > 0)
   }
 
   function onSetWeaponAmmoType(item, ammoType) {
@@ -1851,8 +1853,7 @@
                         <p class="text-sm text-[#1f140b]">{{ ammo.label }}</p>
                         <p v-if="ammo.active" class="text-xs text-[#7b2418]">{{ uiText('active', 'Active') }}</p>
                       </div>
-                      <div class="w-full flex justify-between items-center mt-1">
-                        <p class="text-xs text-[#565353]">{{ ammo.key }}</p>
+                      <div class="w-full flex justify-end items-center mt-1">
                         <p class="text-xs text-[#565353]">{{ uiText('weapon', 'Weapon') }}: {{ ammo.weapon }} • {{ uiText('belt', 'Belt') }}: {{ ammo.belt }}</p>
                       </div>
                     </div>

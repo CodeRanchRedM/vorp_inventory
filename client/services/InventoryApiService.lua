@@ -65,11 +65,16 @@ end
 
 InventoryApiService.subWeapon = function(weaponId)
     if UserWeapons[weaponId] ~= nil then
-        if UserWeapons[weaponId]:getUsed() then
+        if Config.WeaponWheel and Config.WeaponWheel.Enabled then
+            RemoveWeaponFromPed(PlayerPedId(), joaat(UserWeapons[weaponId]:getName()), true, 0)
+        elseif UserWeapons[weaponId]:getUsed() then
             UserWeapons[weaponId]:setUsed(false)
             UserWeapons[weaponId]:UnequipWeapon()
         end
         Utils.TableRemoveByKey(UserWeapons, weaponId)
+        if InventoryService.SyncWeaponWheel then
+            InventoryService.SyncWeaponWheel()
+        end
     end
     NUIService.LoadInv()
 end

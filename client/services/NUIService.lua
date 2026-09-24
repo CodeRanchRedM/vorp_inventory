@@ -318,12 +318,15 @@ function NUIService.NUIDropItem(obj)
             if UserWeapons[aux.id] then
                 local weapon = UserWeapons[aux.id]
 
-                if weapon:getUsed() then
+                if Config.WeaponWheel and Config.WeaponWheel.Enabled then
+                    RemoveWeaponFromPed(PlayerPedId(), joaat(weapon:getName()), true, 0)
+                elseif weapon:getUsed() then
                     weapon:setUsed(false)
                     weapon:UnequipWeapon()
                 end
 
                 UserWeapons[aux.id] = nil
+                InventoryService.SyncWeaponWheel()
             end
         end
         SetTimeout(100, function()
@@ -409,6 +412,16 @@ local function useWeapon(data)
         Core.NotifyRightTip(T("weaponBroken") or "This weapon is broken", 3000)
         return
     end
+
+    if Config.WeaponWheel and Config.WeaponWheel.Enabled then
+        local weapon = UserWeapons[weaponId]
+        InventoryService.SyncWeaponWheel()
+        weapon:loadComponents()
+        SetCurrentPedWeapon(ped, joaat(weapon:getName()), true, 0, false, false)
+        NUIService.LoadInv()
+        return
+    end
+
     local weapName = joaat(UserWeapons[weaponId]:getName())
     local weaponGroup = GetWeapontypeGroup(weapName)
     local isWeaponBow = weaponGroup == joaat("GROUP_BOW")
@@ -520,7 +533,8 @@ function NUIService.NUISetWeaponAmmoType(data)
     end
 
     local weapon = UserWeapons[weaponId]
-    if not (weapon:getUsed() or weapon:getUsed2()) then
+    local nativeWheelEnabled = Config.WeaponWheel and Config.WeaponWheel.Enabled
+    if not nativeWheelEnabled and not (weapon:getUsed() or weapon:getUsed2()) then
         return
     end
 
@@ -536,6 +550,12 @@ function NUIService.NUISetWeaponAmmoType(data)
     local selectedQty = PlayerAmmoInfo and PlayerAmmoInfo.ammo and tonumber(PlayerAmmoInfo.ammo[ammoType]) or 0
     if selectedQty <= 0 then
         return
+    end
+
+    if nativeWheelEnabled then
+        InventoryService.SyncWeaponWheel()
+        SetCurrentPedWeapon(ped, weaponHash, true, 0, false, false)
+        Wait(50)
     end
 
     -- Pause the ammo-saving thread so it doesn't write the transient ped state back to the belt.
@@ -972,6 +992,9 @@ function NUIService.initiateData()
             PlayerInventorySlots = Config.PlayerInventorySlots or 25,
             ShowCharacterNameInTitle = Config.ShowCharacterNameInTitle or false,
             ContextMenuActions = Config.ContextMenuActions or {
+                Enabled = false
+            },
+            WeaponWheel = Config.WeaponWheel or {
                 Enabled = false
             }
         }

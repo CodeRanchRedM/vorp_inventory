@@ -298,7 +298,7 @@ end
 
 function Weapon:loadComponents()
     local playerPedId = PlayerPedId()
-    for _, value in pairs(self.components) do
+    for _, value in pairs(self.components or {}) do
         Citizen.InvokeNative(0x74C9090FDD1BB48E, playerPedId, joaat(value), joaat(self.name), true)
     end
 end

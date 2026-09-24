@@ -4,6 +4,10 @@ UserWeapons = {}
 UserInventory = {}
 local loadoutInitialized = false
 
+local function isNativeWeaponWheelEnabled()
+    return Config.WeaponWheel and Config.WeaponWheel.Enabled == true
+end
+
 function findNextFreeSlot()
     local usedSlots = {}
     for _, item in pairs(UserInventory) do
@@ -24,7 +28,7 @@ function findNextFreeSlot()
 end
 
 local function giveWeaponToPedForWheel(weaponName, ammoTotal)
-    if not Config.WeaponWheel or not Config.WeaponWheel.Enabled then
+    if not isNativeWeaponWheelEnabled() then
         return
     end
     if not weaponName or weaponName == "" then
@@ -35,10 +39,35 @@ local function giveWeaponToPedForWheel(weaponName, ammoTotal)
         return
     end
     local hash = joaat(weaponName)
-    if Citizen.InvokeNative(0x8DECB02F88F428BC, ped, hash, 0, true) then
+    -- RedM's extended signature: add it to the carried inventory/holster without
+    -- forcing it into the player's hand. This makes it available in the wheel.
+    GiveWeaponToPed(ped, hash, tonumber(ammoTotal) or 0, false, true, 0, false, 0.5, 1.0, 0, false, 0.0, false)
+end
+
+function InventoryService.SyncWeaponWheel()
+    if not isNativeWeaponWheelEnabled() then
         return
     end
-    GiveWeaponToPed(ped, hash, ammoTotal or 0, true, false)
+
+    local ped = PlayerPedId()
+    if not ped or ped == 0 then
+        return
+    end
+
+    for _, weapon in pairs(UserWeapons) do
+        local weaponHash = joaat(weapon:getName())
+        local isBroken = Config.WeaponDurability and Config.WeaponDurability.Enabled
+            and weapon:getDurability() <= 0
+
+        if isBroken then
+            if Citizen.InvokeNative(0x8DECB02F88F428BC, ped, weaponHash, 0, true) then
+                RemoveWeaponFromPed(ped, weaponHash, true, 0)
+            end
+        else
+            giveWeaponToPedForWheel(weapon:getName(), weapon:getAmmoTotal())
+            weapon:loadComponents()
+        end
+    end
 end
 
 function InventoryService.receiveItem(name, id, amount, metadata, degradation, percentage)
@@ -131,7 +160,7 @@ function InventoryService.receiveWeapon(id, propietary, name, ammos, label, seri
             durability = durability or 100
         })
         UserWeapons[newWeapon:getId()] = newWeapon
-        giveWeaponToPedForWheel(name, ammo_total)
+        InventoryService.SyncWeaponWheel()
         NUIService.LoadInv()
     end
 end
@@ -185,7 +214,9 @@ function InventoryService.getLoadout(loadout)
     end
     for id, wp in pairs(UserWeapons) do
         if not newIds[id] then
-            if wp.getUsed and (wp:getUsed() or wp:getUsed2()) then
+            if isNativeWeaponWheelEnabled() then
+                RemoveWeaponFromPed(PlayerPedId(), joaat(wp:getName()), true, 0)
+            elseif wp.getUsed and (wp:getUsed() or wp:getUsed2()) then
                 wp:UnequipWeapon()
             end
             UserWeapons[id] = nil
@@ -205,6 +236,14 @@ function InventoryService.getLoadout(loadout)
         end
         if weapon.used2 == 1 or weapon.used2 == true then
             weaponUsed2 = true
+        end
+
+        -- Native-wheel weapons are carried by the ped rather than tracked as
+        -- VORP's one/two custom equipped slots.
+        if isNativeWeaponWheelEnabled() and (weaponUsed or weaponUsed2) then
+            TriggerServerEvent("vorpinventory:setUsedWeapon", tonumber(weapon.id), false, false)
+            weaponUsed = false
+            weaponUsed2 = false
         end
 
         if weapon.currInv == "default" and (weapon.dropped == nil or weapon.dropped == 0) then
@@ -231,7 +270,6 @@ function InventoryService.getLoadout(loadout)
                 existingWeapon:setAmmoTotal(weapon.ammo_total or 0)
                 existingWeapon:setDurability(weapon.durability or 100)
                 existingWeapon.comps = weapon.comps or {}
-                giveWeaponToPedForWheel(weapon.name, weapon.ammo_total)
             else
                 local newWeapon = Weapon:New({
                     id = weaponId,
@@ -256,14 +294,14 @@ function InventoryService.getLoadout(loadout)
                     comps = weapon.comps or {}
                 })
                 UserWeapons[newWeapon:getId()] = newWeapon
-                giveWeaponToPedForWheel(weapon.name, weapon.ammo_total)
 
-                if not loadoutInitialized and newWeapon:getUsed() then
+                if not isNativeWeaponWheelEnabled() and not loadoutInitialized and newWeapon:getUsed() then
                     Utils.useWeapon(newWeapon:getId())
                 end
             end
         end
     end
+    InventoryService.SyncWeaponWheel()
     loadoutInitialized = true
 end
 
